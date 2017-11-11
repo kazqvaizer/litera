@@ -1,46 +1,49 @@
-
 import json
 from os import path
+from time import sleep
 
 from bs4 import BeautifulSoup
 import requests
 
+import constants
 from exceptions import NoDataException
 
 
-MAX_PAGES_PER_CHAPTER = 10000
-
-
 class LitEraParser(object):
+    """Простой парсер книг с сайта lit-era. Создан в учебных целях.
+
+    .. usage::
+
+        LitEraParser(book_slug).parse_to_file(book_file_name)
+
+    """
 
     csrf_token = ''
-    chapter_id_list = []
-    _session = None
 
     def __init__(self, book_slug):
-        self.book_url = path.join(LITERA_BOOKS_URL, book_slug)
+        self.book_url = path.join(constants.LITERA_BOOKS_URL, book_slug)
+        self._session = None
+        self._chapter_id_list = None
+        self._init_book()
 
     @property
     def session(self):
-
         if self._session is None:
             self._session = requests.Session()
             self._session.headers.update({
-                'user-agent': (
-                    'Browser 2.0'
-                )
+                'user-agent': 'Browser 2.1',
+                'accept-language': 'en-US, en; q = 0.8',
+                'x-requested-with': 'XMLHttpRequest'
             })
-            self._init_book()
-
         return self._session
 
     def _init_book(self):
 
         html_response = self.session.get(self.book_url)
-        html_parser = BeautifulSoup(html_response.content, 'html.parser')
+        html_parser = BeautifulSoup(html_response.text, 'html.parser')
 
         chapters = html_parser.find('select', {'name': 'chapter'})
-        self.chapter_id_list = [
+        self._chapter_id_list = [
             option_element.attrs['value']
             for option_element in chapters.find_all('option')
         ]
@@ -49,14 +52,9 @@ class LitEraParser(object):
         self.csrf_token = token_meta.attrs['content']
 
         self.session.headers.update({
-            'origin': LITERA_ORIGIN_URL,
+            'origin': constants.LITERA_ORIGIN_URL,
             'referer': self.book_url,
-            'accept': 'application/json, text/javascript, */*; q = 0.01',
-            'accept-encoding': 'gzip, deflate, br',
-            'accept-language': 'en-US, en; q = 0.8',
-            'content-length': '90',
-            'x-csrf-token': self.csrf_token,
-            'x-requested-with': 'XMLHttpRequest'
+            'x-csrf-token': self.csrf_token
         })
 
     def _get_page(self, chapter_id, page):
@@ -67,7 +65,9 @@ class LitEraParser(object):
             '_csrf': self.csrf_token
         }
 
-        response_data = self.session.post(LITERA_GET_PAGE_URL, post_params)
+        response_data = self.session.post(
+            constants.LITERA_GET_PAGE_URL, post_params
+        )
         response_json = json.loads(response_data.text)
 
         if not response_json['status']:
@@ -80,7 +80,7 @@ class LitEraParser(object):
 
         return page_parser.text, response_json['isLastPage']
 
-    def get_chapter(self, chapter_id):
+    def _get_chapter(self, chapter_id):
 
         self.session.headers['referer'] = '{}?c={}'.format(
             self.book_url, chapter_id
@@ -89,11 +89,12 @@ class LitEraParser(object):
         total_chapter_text = ''
 
         try:
-            for page in range(1, MAX_PAGES_PER_CHAPTER):
+            for page in range(1, constants.MAX_PAGES_PER_CHAPTER):
                 chapter_text, is_last_page = self._get_page(chapter_id, page)
                 total_chapter_text += chapter_text
                 if is_last_page:
                     break
+                sleep(constants.WAIT_BETWEEN)
         except NoDataException as ex:
             print('Error! ', ex)
 
@@ -101,16 +102,11 @@ class LitEraParser(object):
 
         return total_chapter_text
 
-
-book_slug = 'volchya-tropa-b34046'
-
-book_file_name = path.join(BOOK_OUT_DIR, book_slug + '.txt')
-
-parser = LitEraParser(book_slug)
-with open(book_file_name, 'w') as text_file:
-    print('Progress: ', end="")
-    for index, chapter_id in enumerate(parser.chapter_id_list):
-        progress = int(index * 100 / len(parser.chapter_id_list))
-        print(progress, end="..", flush=True)
-        text_file.write(parser.get_chapter(chapter_id))
-    print('100..OK')
+    def parse_to_file(self, book_file_name):
+        with open(book_file_name, 'w') as text_file:
+            print('Progress: ', end="")
+            for index, chapter_id in enumerate(self._chapter_id_list):
+                progress = int(index * 100 / len(self._chapter_id_list))
+                print(progress, end="..", flush=True)
+                text_file.write(self._get_chapter(chapter_id))
+            print('100..OK')
