@@ -75,8 +75,10 @@ class LitEraParser(object):
 
         page_parser = BeautifulSoup(response_json['data'], 'html.parser')
 
+        # Filter from so-called "protection" tags
         for bad_span in page_parser.find_all('span'):
             bad_span.replace_with('')
+        [x.extract() for x in page_parser.findAll('i')]
 
         return page_parser.text, response_json['isLastPage']
 
