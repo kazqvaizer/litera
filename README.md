@@ -1,15 +1,15 @@
-Lit-Era парсер книг
+Парсер книг с litnet.com (он же lit-era.com) 
 ===================
 
-> Данный пример позволительно использовать только в учебных целях!
+Литнет не дает скачивать доступные вам книги и заставляет их читать со своего убого сайта? Решение тут.
 
 USAGE
 -----
 
-./starter.py -s volchya-tropa-b34046 -o ~/volchya-tropa.txt
+./starter.py -s volchya-tropa-b34046 -o ~/volchya-tropa.txt -l some.mail@mail.com -p some.pass
 
 
 REQUIREMENTS
 ------------
 
-pip install requests beautifulsoup4
+pip install -r requirements.txt
