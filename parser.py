@@ -2,15 +2,15 @@ import json
 from os import path
 from time import sleep
 
-from bs4 import BeautifulSoup
 import requests
+from bs4 import BeautifulSoup
 
 import constants
-from exceptions import NoDataException
+from exceptions import BadAuthorization, NoDataException
 
 
 class LitEraParser(object):
-    """Простой парсер книг с сайта lit-era. Создан в учебных целях.
+    """Простой парсер книг с сайта litnet.
 
     .. usage::
 
@@ -19,12 +19,12 @@ class LitEraParser(object):
     """
 
     csrf_token = ''
+    _session = None
+    _chapter_id_list = None
 
-    def __init__(self, book_slug):
+    def __init__(self, book_slug, credentials=None):
         self.book_url = path.join(constants.LITERA_BOOKS_URL, book_slug)
-        self._session = None
-        self._chapter_id_list = None
-        self._init_book()
+        self._init_book(credentials=credentials)
 
     @property
     def session(self):
@@ -37,7 +37,19 @@ class LitEraParser(object):
             })
         return self._session
 
-    def _init_book(self):
+    def _auth(self, login, password):
+
+        # application / x - www - form - urlencoded
+        result = self.session.post(constants.LITERA_LOGIN_URL, data={
+            'LoginForm[login]': login,
+            'LoginForm[password]': password,
+            'ajax': 'w0',
+        })
+
+        if result.status_code != 200:
+            raise BadAuthorization()
+
+    def _init_book(self, credentials=None):
 
         html_response = self.session.get(self.book_url)
         html_parser = BeautifulSoup(html_response.text, 'html.parser')
@@ -56,6 +68,9 @@ class LitEraParser(object):
             'referer': self.book_url,
             'x-csrf-token': self.csrf_token
         })
+
+        if credentials:
+            self._auth(*credentials)
 
     def _get_page(self, chapter_id, page):
 
